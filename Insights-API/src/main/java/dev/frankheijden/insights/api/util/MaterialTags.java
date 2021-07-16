@@ -5,6 +5,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Tag;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -14,6 +15,18 @@ public class MaterialTags implements Tag<Material> {
 
     private static final List<Material> MATERIALS = Arrays.asList(Material.values());
     public static final MaterialTags BUCKETS = new MaterialTags(m -> m.name().endsWith("_BUCKET"), "buckets");
+    public static final MaterialTags NEEDS_GROUND = new MaterialTags(
+            EnumSet.of(
+                    Material.ACTIVATOR_RAIL,
+                    Material.COMPARATOR,
+                    Material.DETECTOR_RAIL,
+                    Material.POWERED_RAIL,
+                    Material.RAIL,
+                    Material.REDSTONE_WIRE,
+                    Material.REPEATER
+            ),
+            "needs_ground"
+    );
 
     private final Set<Material> materials;
     private final String key;

@@ -6,14 +6,12 @@ import dev.frankheijden.insights.api.listeners.InsightsListener;
 import dev.frankheijden.insights.api.objects.wrappers.ScanObject;
 import dev.frankheijden.insights.api.util.MaterialTags;
 import dev.frankheijden.insights.api.utils.BlockUtils;
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
-import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Directional;
-import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -49,13 +47,13 @@ public class BlockListener extends InsightsListener {
      */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
-        Block block = event.getBlock();
-        Location location = block.getLocation();
-        Material material = block.getType();
-        Player player = event.getPlayer();
+        var block = event.getBlock();
+        var location = block.getLocation();
+        var material = block.getType();
+        var player = event.getPlayer();
 
         // In case of BlockMultiPlaceEvent, we may need to take a different delta.
-        int delta = 0;
+        var delta = 0;
         if (event instanceof BlockMultiPlaceEvent) {
             List<BlockState> replacedBlockStates = ((BlockMultiPlaceEvent) event).getReplacedBlockStates();
             for (BlockState state : replacedBlockStates) {
@@ -78,16 +76,16 @@ public class BlockListener extends InsightsListener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPlaceMonitor(BlockPlaceEvent event) {
-        Block block = event.getBlock();
-        Location location = block.getLocation();
-        Material material = block.getType();
-        Player player = event.getPlayer();
+        var block = event.getBlock();
+        var location = block.getLocation();
+        var material = block.getType();
+        var player = event.getPlayer();
 
         // In case of BlockMultiPlaceEvent, we need to update the cache differently.
         if (event instanceof BlockMultiPlaceEvent) {
             List<BlockState> replacedBlockStates = ((BlockMultiPlaceEvent) event).getReplacedBlockStates();
             for (BlockState state : replacedBlockStates) {
-                Location loc = state.getLocation();
+                var loc = state.getLocation();
                 handleModification(loc, state.getType(), material, 1);
             }
         } else {
@@ -103,15 +101,15 @@ public class BlockListener extends InsightsListener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
-        Block block = event.getBlock();
-        Location location = block.getLocation();
-        Material material = block.getType();
-        Player player = event.getPlayer();
+        var block = event.getBlock();
+        var location = block.getLocation();
+        var material = block.getType();
+        var player = event.getPlayer();
 
         if (Tag.BEDS.isTagged(material)) {
             Optional<Block> blockOptional = BlockUtils.getOtherHalf(block);
             if (blockOptional.isPresent()) {
-                Block otherHalf = blockOptional.get();
+                var otherHalf = blockOptional.get();
 
                 // Update the other half's location
                 handleModification(otherHalf.getLocation(), material, -1);
@@ -121,10 +119,20 @@ public class BlockListener extends InsightsListener {
         // Handle the removal
         handleRemoval(player, location, ScanObject.of(material), 1, false);
 
-        // Reschedule the chunk for scanning
-        // Hacky way of allowing indirect block breaks,
-        // such as redstone wire popping off when the block below it is being broken.
-        plugin.getChunkContainerExecutor().submit(block.getChunk());
+        // Need to check if block above broken block was a block which needs support (solid block below it),
+        // and subtract that from the cache as well (only if it does not make a sound when broken, i.e. REDSTONE_WIRE)
+        var aboveBlock = getTopNonGravityBlock(block);
+        var aboveMaterial = aboveBlock.getType();
+        if (MaterialTags.NEEDS_GROUND.isTagged(aboveMaterial)) {
+            handleRemoval(player, aboveBlock.getLocation(), ScanObject.of(aboveMaterial), 1, false);
+        }
+    }
+
+    private Block getTopNonGravityBlock(Block start) {
+        do {
+            start = start.getRelative(BlockFace.UP);
+        } while (start.getType().hasGravity());
+        return start;
     }
 
     @AllowDisabling
@@ -139,12 +147,12 @@ public class BlockListener extends InsightsListener {
     @AllowDisabling
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockDispense(BlockDispenseEvent event) {
-        Block block = event.getBlock();
-        BlockData blockData = block.getBlockData();
+        var block = event.getBlock();
+        var blockData = block.getBlockData();
 
         // If block is not directional, we don't know the dispensed block's position.
         if (!(blockData instanceof Directional)) return;
-        Block relative = block.getRelative(((Directional) blockData).getFacing());
+        var relative = block.getRelative(((Directional) blockData).getFacing());
 
         Material item = event.getItem().getType();
 
@@ -173,14 +181,14 @@ public class BlockListener extends InsightsListener {
     @AllowDisabling
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockExplode(BlockExplodeEvent event) {
-        Block block = event.getBlock();
-        Location location = block.getLocation();
+        var block = event.getBlock();
+        var location = block.getLocation();
 
-        PlayerListener playerListener = ((Insights) plugin).getPlayerListener();
+        var playerListener = ((Insights) plugin).getPlayerListener();
         Optional<PlayerListener.ExplodedBed> bedOptional = playerListener.getIntentionalDesignBugAt(location);
         if (bedOptional.isPresent()) {
-            PlayerListener.ExplodedBed explodedBed = bedOptional.get();
-            Material material = explodedBed.getMaterial();
+            var explodedBed = bedOptional.get();
+            var material = explodedBed.getMaterial();
             handleModification(explodedBed.getHead(), material, -1);
             handleModification(explodedBed.getFoot(), material, -1);
         } else {
@@ -198,7 +206,7 @@ public class BlockListener extends InsightsListener {
     @AllowDisabling
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockFade(BlockFadeEvent event) {
-        Block block = event.getBlock();
+        var block = event.getBlock();
         handleModification(block.getLocation(), block.getType(), event.getNewState().getType(), 1);
     }
 
@@ -208,7 +216,7 @@ public class BlockListener extends InsightsListener {
     @AllowDisabling
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockFromTo(BlockFromToEvent event) {
-        Block block = event.getToBlock();
+        var block = event.getToBlock();
 
         // For some weird reason the "ToBlock" contains the from data...
         handleModification(block.getLocation(), block.getType(), event.getBlock().getType(), 1);
@@ -228,7 +236,7 @@ public class BlockListener extends InsightsListener {
     @AllowDisabling
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockGrow(BlockGrowEvent event) {
-        Block block = event.getBlock();
+        var block = event.getBlock();
         handleModification(block.getLocation(), block.getType(), event.getNewState().getType(), 1);
     }
 
@@ -256,7 +264,7 @@ public class BlockListener extends InsightsListener {
      */
     private void handlePistonEvent(BlockPistonEvent event, List<Block> blocks) {
         for (Block block : blocks) {
-            Block relative = block.getRelative(event.getDirection());
+            var relative = block.getRelative(event.getDirection());
 
             handleModification(block.getLocation(), block.getType(), -1);
             handleModification(relative.getLocation(), block.getType(), 1);
@@ -269,7 +277,7 @@ public class BlockListener extends InsightsListener {
     @AllowDisabling
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockSpread(BlockSpreadEvent event) {
-        Block block = event.getBlock();
+        var block = event.getBlock();
         handleModification(block.getLocation(), block.getType(), event.getNewState().getType(), 1);
     }
 
@@ -279,7 +287,7 @@ public class BlockListener extends InsightsListener {
     @AllowDisabling
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityBlockForm(EntityBlockFormEvent event) {
-        Block block = event.getBlock();
+        var block = event.getBlock();
         handleModification(block.getLocation(), block.getType(), event.getNewState().getType(), 1);
     }
 
@@ -298,7 +306,7 @@ public class BlockListener extends InsightsListener {
     @AllowDisabling
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onSpongeAbsorb(SpongeAbsorbEvent event) {
-        Block block = event.getBlock();
+        var block = event.getBlock();
         handleModification(block.getLocation(), Material.SPONGE, Material.WET_SPONGE, 1);
         for (BlockState state : event.getBlocks()) {
             handleModification(state.getLocation(), Material.WATER, state.getType(), 1);
